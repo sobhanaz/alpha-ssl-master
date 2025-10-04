@@ -1,0 +1,140 @@
+name: Bug Report
+description: Create a report to help us improve AlphaSSL
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! 🐛
+        
+        Before submitting, please:
+        - Search existing issues to avoid duplicates
+        - Ensure you're using the latest version of AlphaSSL
+        - Test the issue with a minimal reproduction case
+
+  - type: input
+    id: version
+    attributes:
+      label: AlphaSSL Version
+      description: What version of AlphaSSL are you running?
+      placeholder: "v3.1.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+      options:
+        - Ubuntu 20.04
+        - Ubuntu 22.04
+        - Debian 11
+        - Debian 12
+        - CentOS 7
+        - CentOS 8
+        - RHEL 8
+        - RHEL 9
+        - Other Linux Distribution
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug here...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Run command '...'
+        2. Enter domain '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should have happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Please paste any relevant log output here
+      placeholder: Paste log output here...
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: |
+        Please provide your configuration details:
+        - Command used: `essl ...`
+        - Domain(s): example.com
+        - Destination: /etc/ssl/certs
+        - Any custom settings
+      placeholder: |
+        Command: essl admin@example.com example.com /etc/ssl/certs
+        Domains: example.com, www.example.com
+        Destination: /etc/ssl/certs
+      render: yaml
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues for duplicates
+          required: true
+        - label: I am using the latest version of AlphaSSL
+          required: true
+        - label: I have tested this with a minimal reproduction case
+          required: true
+        - label: I have included all relevant information above
+          required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: Any additional information that might be helpful...
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        **Privacy Notice**: Please ensure you don't include any sensitive information like:
+        - Private keys or certificates
+        - Email passwords
+        - Personal domains (use example.com instead)
+        - Server IP addresses or credentials
+        
+        Thank you for helping us improve AlphaSSL! 🚀

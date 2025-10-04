@@ -1,0 +1,160 @@
+name: Question or Support
+description: Ask a question or get help with AlphaSSL
+title: "[QUESTION] "
+labels: ["question", "support"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome to AlphaSSL support! 👋
+        
+        Before asking your question, please:
+        - Check the [README documentation](../../README.md)
+        - Search existing issues for similar questions
+        - Review the [troubleshooting section](../../README.md#-troubleshooting)
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Question Type
+      description: What type of help do you need?
+      options:
+        - Installation help
+        - Configuration guidance
+        - Troubleshooting existing setup
+        - Usage best practices
+        - Integration with panels
+        - Security concerns
+        - Performance optimization
+        - General question
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: AlphaSSL Version
+      description: What version are you using?
+      placeholder: "v3.1.2 or 'latest'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running on?
+      options:
+        - Ubuntu 20.04
+        - Ubuntu 22.04
+        - Debian 11
+        - Debian 12
+        - CentOS 7
+        - CentOS 8
+        - RHEL 8
+        - RHEL 9
+        - Other Linux Distribution
+        - Not applicable
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: Please describe your question in detail...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and Background
+      description: Provide context about your setup and what you're trying to achieve
+      placeholder: |
+        I'm trying to...
+        
+        My setup includes...
+        
+        I want to achieve...
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: What steps have you already taken?
+      placeholder: |
+        I have tried:
+        1. ...
+        2. ...
+        3. ...
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Current Configuration
+      description: Share your current configuration (remove sensitive information)
+      placeholder: |
+        Command used: essl admin@example.com example.com /etc/ssl/certs
+        Domains: example.com
+        Panel: marzban
+        Custom settings: ...
+      render: yaml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Output or Logs
+      description: If applicable, include any output or error messages
+      placeholder: Paste any relevant output here...
+      render: shell
+
+  - type: checkboxes
+    id: urgency
+    attributes:
+      label: Urgency Level
+      description: How urgent is this question?
+      options:
+        - label: Low - I can wait for a response
+        - label: Medium - I need help within a few days
+        - label: High - I'm blocked and need help soon
+        - label: Critical - Production issue requiring immediate attention
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other details that might be helpful
+      placeholder: Anything else that might help us answer your question...
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## 📚 Helpful Resources
+        
+        While waiting for a response, you might find these helpful:
+        
+        - [📖 Complete Documentation](../../README.md)
+        - [🔧 Troubleshooting Guide](../../README.md#-troubleshooting)
+        - [💬 Community Discussions](../../discussions)
+        - [🏢 Professional Support](https://tecso.team)
+        
+        ## ⚡ Quick Response
+        
+        For faster responses:
+        - Use clear, descriptive titles
+        - Include all relevant information
+        - Remove sensitive data (domains, emails, keys)
+        - Tag [@sobhanaz](https://github.com/sobhanaz) for urgent issues
+        
+        ## 🔐 Privacy Notice
+        
+        Please ensure you don't share:
+        - Private keys or certificates
+        - Email passwords
+        - Real domain names (use example.com)
+        - Server credentials or IP addresses
+        
+        Thank you for using AlphaSSL! 🚀

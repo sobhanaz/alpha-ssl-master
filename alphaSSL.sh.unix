@@ -1,0 +1,399 @@
+#!/bin/bash
+
+# Function definitions for colored output
+colors=( "\033[1;31m" "\033[1;35m" "\033[1;92m" "\033[38;5;46m" "\033[1;38;5;208m" "\033[1;36m" "\033[0m" )
+red=${colors[0]} pink=${colors[1]} green=${colors[2]} spring=${colors[3]} orange=${colors[4]} cyan=${colors[5]} reset=${colors[6]}
+print() { echo -e "${cyan}$1${reset}"; }
+error() { echo -e "${red}✗ $1${reset}"; }
+success() { echo -e "${spring}✓ $1${reset}"; }
+log() { echo -e "${green}! $1${reset}"; }
+warn() { echo -e "${orange} $1${reset}"; }
+
+# Trap for script interruption
+trap 'echo -e "\n${red}Script interrupted!${reset}"; exit 1' SIGINT
+
+# Function to display a banner
+show_banner() {
+    local pink="\033[1;95m"
+    local cyan="\033[1;36m"
+    local reset="\033[0m"
+
+    echo -e "${cyan}"
+    echo -e "        _______                  "
+    echo -e "       |__   __|                 "
+    echo -e "          | | ___  ___ ___  ___  "
+    echo -e "          | |/ _ \/ __/ __|/ _ \ "
+    echo -e "          | |  __/ (__\__ \ (_) |"
+    echo -e "          |_|\___|\___|___/\___/ "
+    echo -e "${reset}"
+    echo -e "${cyan}    🔐 Enterprise SSL Automation by TECSO${reset}"
+    echo -e "${pink}    ⚡ Professional • Secure • Scalable${reset}"
+    echo -e ""
+}
+
+# Validate domain format
+validate_domain() {
+    if [[ ! "$1" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        error "Invalid domain format: $1"
+        return 1
+    fi
+    return 0
+}
+
+# Validate email format
+validate_email() {
+    if [[ ! "$1" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        error "Invalid email format: $1"
+        return 1
+    fi
+    return 0
+}
+
+# Check certificate expiration
+check_certificate_expiry() {
+    local cert_file="$1"
+    if [[ -f "$cert_file" ]]; then
+        local expiry_date=$(openssl x509 -enddate -noout -in "$cert_file" 2>/dev/null | cut -d= -f2)
+        if [[ -n "$expiry_date" ]]; then
+            local expiry_epoch=$(date -d "$expiry_date" +%s 2>/dev/null)
+            local current_epoch=$(date +%s)
+            local days_until_expiry=$(( (expiry_epoch - current_epoch) / 86400 ))
+            
+            if [[ $days_until_expiry -gt 0 ]]; then
+                success "Certificate expires in $days_until_expiry days ($expiry_date)"
+            else
+                warn "Certificate has expired! Expiry date: $expiry_date"
+            fi
+        fi
+    fi
+}
+
+# Function to install necessary dependencies
+install_dependencies() {
+    local pkg_manager
+    local update_cmd
+    local install_cmd
+    
+    # Detect package manager and set commands
+    if command -v apt-get &> /dev/null; then
+        pkg_manager="apt-get"
+        update_cmd="apt-get update -y"
+        install_cmd="apt-get install -y"
+    elif command -v dnf &> /dev/null; then
+        pkg_manager="dnf"
+        update_cmd="dnf check-update || true"
+        install_cmd="dnf install -y"
+    elif command -v yum &> /dev/null; then
+        pkg_manager="yum"
+        update_cmd="yum check-update || true"
+        install_cmd="yum install -y"
+    elif command -v pacman &> /dev/null; then
+        pkg_manager="pacman"
+        update_cmd="pacman -Sy"
+        install_cmd="pacman -S --noconfirm"
+    else
+        error "No supported package manager found. Please install curl, socat, and certbot manually."
+        exit 1
+    fi
+
+    log "Updating package lists using $pkg_manager..."
+    eval $update_cmd || warn "Failed to update package lists."
+
+    local packages=("curl" "socat" "certbot" "openssl")
+    for pkg in "${packages[@]}"; do
+        if ! command -v "$pkg" &> /dev/null; then
+            log "Installing $pkg..."
+            eval "$install_cmd $pkg" || error "Failed to install $pkg"
+        else
+            log "$pkg is already installed"
+        fi
+    done
+
+    if ! command -v acme.sh &> /dev/null; then
+        log "Installing acme.sh..."
+        curl -s https://get.acme.sh | sh -s email="$email" || error "Failed to install acme.sh"
+        
+        # Source acme.sh if available
+        [[ -f ~/.bashrc ]] && source ~/.bashrc
+        [[ -f ~/.acme.sh/acme.sh.env ]] && source ~/.acme.sh/acme.sh.env
+    else
+        log "acme.sh is already installed"
+    fi
+
+    success "All dependencies are installed and ready."
+}
+
+# Function to obtain and install SSL certificate using acme.sh for multiple domains
+get_install_certificate_acme() {
+    local domains=("$@")
+    local domain_args=""
+    local main_domain="${domains[0]}"
+
+    for domain in "${domains[@]}"; do
+        domain=$(echo "$domain" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        domain_args+=" -d $domain"
+    done
+
+    ~/.acme.sh/acme.sh --issue --standalone $domain_args --accountemail "$email" || return 1
+
+    local cert_dir="$destination"
+    mkdir -p "$cert_dir" || error "Failed to create certificate directory"
+
+    ~/.acme.sh/acme.sh --install-cert -d "$main_domain" \
+        --key-file "$cert_dir/privkey.pem" \
+        --fullchain-file "$cert_dir/fullchain.pem" || return 1
+
+    ~/.acme.sh/acme.sh --installcert -d "$main_domain" \
+        --key-file /root/private.key \
+        --fullchain-file /root/cert.crt || return 1
+
+    # Set secure file permissions
+    chmod 600 "$cert_dir/privkey.pem" 2>/dev/null
+    chmod 644 "$cert_dir/fullchain.pem" 2>/dev/null
+    chmod 600 /root/private.key 2>/dev/null
+    chmod 644 /root/cert.crt 2>/dev/null
+
+    success "SSL certificate obtained and installed using acme.sh for domains: ${domains[*]}"
+
+    return 0
+}
+
+# Function to obtain and install SSL certificate using certbot for multiple domains
+get_install_certificate_certbot() {
+    local domains=("$@")
+    local domain_args=""
+
+    for domain in "${domains[@]}"; do
+        domain=$(echo "$domain" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        domain_args+=" -d $domain"
+    done
+
+    certbot certonly --standalone $domain_args --non-interactive --agree-tos --email "$email" || return 1
+
+    local main_domain="${domains[0]}"
+    local cert_dir="$destination"
+    mkdir -p "$cert_dir" || error "Failed to create certificate directory"
+
+    cat /etc/letsencrypt/live/$main_domain/privkey.pem > "$cert_dir/privkey.pem"
+    cat /etc/letsencrypt/live/$main_domain/fullchain.pem > "$cert_dir/fullchain.pem"
+
+    # Set secure file permissions
+    chmod 600 "$cert_dir/privkey.pem" 2>/dev/null
+    chmod 644 "$cert_dir/fullchain.pem" 2>/dev/null
+
+    success "SSL certificate obtained and installed using certbot for domains: ${domains[*]}"
+    return 0
+}
+
+# Function to install the ESSL script
+install_script() {
+    log "Installing ESSL script..."
+    local install_dir="/usr/local/bin"
+    local script_path="$install_dir/essl"
+
+    curl -s -o "$script_path" https://raw.githubusercontent.com/sobhanaz/alpha-ssl-master/main/alphaSSL.sh
+    chmod +x "$script_path"
+    success "ESSL script installed successfully."
+}
+
+# Function to upgrade the ESSL script
+upgrade_script() {
+    log "Upgrading ESSL script..."
+    local install_dir="/usr/local/bin"
+    local script_path="$install_dir/essl"
+
+    if [ -f "$script_path" ]; then
+        curl -s -o "$script_path" https://raw.githubusercontent.com/sobhanaz/alpha-ssl-master/main/alphaSSL.sh
+        chmod +x "$script_path"
+        success "ESSL script upgraded successfully."
+    else
+        error "ESSL script not found. Use '--install' to install it first."
+    fi
+}
+
+# Function to display help message
+show_help() {
+    cat << EOF
+
+🔑 AlphaSSL - Enterprise SSL Certificate Automation
+🏢 Powered by TECSO Digital Agency | https://tecso.team
+
+📊 USAGE:
+  essl [email] [domain1 domain2 ...] [destination] | [options]
+
+📧 EMAIL:
+  Valid email address for certificate notifications and account registration
+  Example: admin@company.com
+
+🌐 DOMAINS:
+  One or more domain names (space-separated)
+  Supports: example.com, subdomain.example.com, multiple domains
+
+📁 DESTINATION:
+  Certificate installation location:
+  • 'marzban'     → /var/lib/marzban/certs
+  • 'marzneshin'  → /var/lib/marzneshin/certs
+  • 'x-ui'        → /certs
+  • '3x-ui'       → /certs
+  • 's-ui'        → /certs
+  • 'hiddify'     → /certs
+  • Custom path starting with '/'
+
+⚙️  COMMANDS:
+  --install     Install AlphaSSL system-wide
+  --upgrade     Upgrade to the latest version
+  --help, -h    Show this help message
+  --version, -v Show version and system information
+
+📚 EXAMPLES:
+
+  🏢 Enterprise Setup:
+    essl security@company.com company.com www.company.com api.company.com /etc/nginx/ssl/
+
+  🔌 Proxy Panel Integration:
+    essl admin@proxy.com vpn.example.com marzban
+    essl support@company.com panel.example.com x-ui
+
+  🔧 Development Environment:
+    essl dev@localhost.com test.local.com /home/user/ssl-certs/
+
+  📦 System Management:
+    essl --install    # Install AlphaSSL
+    essl --upgrade    # Update to latest version
+    essl --version    # Check current version
+
+⚠️  REQUIREMENTS:
+  • Linux operating system (Ubuntu, Debian, CentOS, RHEL, Arch)
+  • Root privileges (sudo)
+  • Port 80 accessible for domain validation
+  • Valid DNS records pointing to this server
+
+🔒 SECURITY:
+  • Certificates stored with secure permissions (600/644)
+  • Dual provider fallback (acme.sh → certbot)
+  • Input validation and sanitization
+  • Safe installation procedures
+
+🏢 SUPPORT:
+  • Documentation: https://github.com/sobhanaz/alpha-ssl-master
+  • Issues: https://github.com/sobhanaz/alpha-ssl-master/issues
+  • Enterprise Support: https://tecso.team
+  • Email: support@tecso.team
+
+EOF
+}
+
+# Main function to handle the script logic
+main() {
+    show_banner
+
+    [ "$EUID" -eq 0 ] || { error "This script must be run as root."; exit 1; }
+
+    # Handle --install and --upgrade options
+    case "$1" in
+        --install)
+            install_script
+            exit 0
+            ;;
+        --upgrade)
+            upgrade_script
+            exit 0
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        --version|-v)
+            print "Current AlphaSSL version: v3.1.2"
+            print "🏢 Powered by TECSO Digital Agency"
+            print "📞 Enterprise Support: https://tecso.team"
+            exit 0
+            ;;
+    esac
+
+    # Get inputs from user if no arguments are provided
+    if [ $# -eq 0 ]; then
+        read -p "Enter your email: " email
+        read -p "Enter your domains (space-separated): " -a domains
+        read -p "Enter the destination path: " destination
+    else
+        email="$1"
+        shift
+        domains=("$@")
+        destination="${domains[-1]}"
+        unset domains[-1]
+    fi
+
+    # Validate inputs
+    if [[ -z "$email" || ${#domains[@]} -eq 0 || -z "$destination" ]]; then
+        error "Invalid input. Please provide email, domains, and destination."
+        exit 1
+    fi
+
+    # Validate email format
+    validate_email "$email" || exit 1
+
+    # Validate and handle the domains
+    for domain in "${domains[@]}"; do
+        validate_domain "$domain" || exit 1
+    done
+
+    # Set predefined paths if necessary
+    case "$destination" in
+        marzban) base_destination="/var/lib/marzban/certs" ;;
+        marzneshin) base_destination="/var/lib/marzneshin/certs" ;;
+        x-ui|3x-ui|s-ui|hiddify) base_destination="/certs" ;;
+        *)
+            if [[ "$destination" != /* ]]; then
+                error "Invalid destination path. Must start with '/'"
+                exit 1
+            fi
+            base_destination="$destination"
+            ;;
+    esac
+    [[ "$destination" != */ ]] && destination="${destination}/"
+
+    # Install dependencies
+    install_dependencies
+
+    # Create subdirectory using the first domain
+    first_domain="${domains[0]}"
+    destination="${base_destination}/${first_domain}/"
+
+    # Try acme.sh first
+    if get_install_certificate_acme "${domains[@]}"; then
+        log "Certificate successfully obtained using acme.sh"
+    else
+        warn "Failed to obtain certificate using acme.sh. Trying certbot..."
+        if get_install_certificate_certbot "${domains[@]}"; then
+            log "Certificate successfully obtained using certbot"
+        else
+            error "Failed to obtain certificate using both acme.sh and certbot"
+            exit 1
+        fi
+    fi
+
+    # Display final certificate path and information
+    success "🎉 SSL Certificate successfully deployed!"
+    echo -e "${cyan}📁 Certificate Location:${reset}"
+    print "🔑 Private key: ${destination}privkey.pem"
+    print "📜 Full chain: ${destination}fullchain.pem"
+    print "📋 System copy: /root/private.key & /root/cert.crt"
+    
+    # Check certificate expiration
+    echo -e "${cyan}📅 Certificate Information:${reset}"
+    check_certificate_expiry "${destination}fullchain.pem"
+    
+    echo -e "${cyan}🔍 Next Steps:${reset}"
+    print "1. Configure your web server to use these certificates"
+    print "2. Test SSL configuration: https://www.ssllabs.com/ssltest/"
+    print "3. Set up auto-renewal for certificate expiration"
+    echo -e "${pink}🏢 Need help? Contact TECSO: https://tecso.team${reset}"
+}
+
+# If no arguments are provided, prompt for user input
+if [ $# -eq 0 ]; then
+    main
+else
+    main "$@"
+fi
